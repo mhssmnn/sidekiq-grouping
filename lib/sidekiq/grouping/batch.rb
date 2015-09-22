@@ -127,8 +127,8 @@ module Sidekiq
         end
 
         def extract_worker_klass_and_queue(name)
-          klass, queue = name.split(':')
-          [klass.classify, queue]
+          klass, queue, key = name.split(':')
+          [klass.classify, queue, key]
         end
       end
     end
