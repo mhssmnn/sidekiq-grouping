@@ -122,10 +122,54 @@ describe Sidekiq::Grouping::Batch do
     end
   end
 
+  context 'with batch key' do
+    context 'option batch_key = ->(_, key) { key }' do
+      it 'enqueues per key' do
+        batch1 = subject.new(BatchedKeyedWorker.name, 'batched_key', '1')
+        batch2 = subject.new(BatchedKeyedWorker.name, 'batched_key', '2')
+        3.times { |n| BatchedKeyedWorker.perform_async('bar', n) }
+        expect(batch1.size).to eq(1)
+        expect(batch2.size).to eq(1)
+
+        BatchedKeyedWorker.perform_async('bar', 1)
+        expect(batch1.size).to eq(2)
+
+        3.times { BatchedKeyedWorker.perform_async('bar', 2) }
+        expect(batch2.size).to eq(4)
+      end
+    end
+    context 'flushing' do
+      it 'must flush if limit okay but time came for key' do
+        batch = subject.new(BatchedKeyedWorker.name, 'batched_key', '1')
+
+        expect(batch.could_flush?).to be_falsy
+        BatchedKeyedWorker.perform_async('bar', 0)
+        expect(batch.could_flush?).to be_falsy
+        expect(batch.size).to eq(0)
+        BatchedKeyedWorker.perform_async('bar', 1)
+        expect(batch.could_flush?).to be_falsy
+        expect(batch.size).to eq(1)
+
+        Timecop.travel(2.hours.since)
+
+        expect(batch.could_flush?).to be_truthy
+      end
+      it 'must put worker to queue on flush' do
+        batch = subject.new(BatchedKeyedWorker.name, 'batched_key', '1')
+
+        expect(batch.could_flush?).to be_falsy
+        5.times { |n| BatchedKeyedWorker.perform_async("bar#{n}", n % 2) }
+        batch.flush
+        expect(BatchedKeyedWorker).to have_enqueued_job([["bar1", 1], ["bar3", 1]])
+        expect(batch.size).to eq(0)
+      end
+    end
+  end
+
   private
-  def expect_batch(klass, queue)
+  def expect_batch(klass, queue, key = nil)
     expect(klass).to_not have_enqueued_job('bar')
-    batch = subject.new(klass.name, queue)
+    batch = subject.new(klass.name, queue, key)
     stats = subject.all
     expect(batch.size).to eq(1)
     expect(stats.size).to eq(1)

@@ -2,10 +2,12 @@ module Sidekiq
   module Grouping
     class Batch
 
-      def initialize(worker_class, queue, redis_pool = nil)
+      def initialize(worker_class, queue, key = nil, redis_pool = nil)
         @worker_class = worker_class
         @queue = queue
+        @key = key
         @name = "#{worker_class.underscore}:#{queue}"
+        @name = "#{@name}:#{key}" unless key.nil?
         @redis = Sidekiq::Grouping::Redis.new
       end
 

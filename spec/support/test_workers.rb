@@ -44,3 +44,14 @@ class BatchedUniqueArgsWorker
   def perform(foo)
   end
 end
+
+class BatchedKeyedWorker
+  include Sidekiq::Worker
+
+  sidekiq_options(
+    queue: :batched_key, batch_flush_interval: 3600, batch_key: ->(_, key){ key }
+  )
+
+  def perform(foo)
+  end
+end

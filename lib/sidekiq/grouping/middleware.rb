@@ -14,8 +14,10 @@ module Sidekiq
           msg['args'].is_a?(Array) &&
           msg['args'].try(:first) == true
 
+        batch_key = options['batch_key'] || nil
+
         if batch && not(passthrough)
-          add_to_batch(worker_class, queue, msg, redis_pool)
+          add_to_batch(worker_class, queue, batch_key, msg, redis_pool)
         else
           if batch && passthrough
             msg['args'].shift
@@ -26,9 +28,13 @@ module Sidekiq
 
       private
 
-      def add_to_batch(worker_class, queue, msg, redis_pool = nil)
+      def add_to_batch(worker_class, queue, batch_key, msg, redis_pool = nil)
+        if batch_key.respond_to? :call
+          key = batch_key.call( *msg['args'] )
+        end
+
         Sidekiq::Grouping::Batch
-          .new(worker_class.name, queue, redis_pool)
+          .new(worker_class.name, queue, key, redis_pool)
           .add(msg['args'])
 
         nil
