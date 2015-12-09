@@ -16,12 +16,14 @@ module Sidekiq
 
         batch_key = options['batch_key'] || nil
 
-        if batch && not(passthrough)
+        retrying = msg["failed_at"].present?
+
+        return yield unless batch
+
+        if !(passthrough || retrying)
           add_to_batch(worker_class, queue, batch_key, msg, redis_pool)
         else
-          if batch && passthrough
-            msg['args'].shift
-          end
+          msg['args'].shift if passthrough
           yield
         end
       end
